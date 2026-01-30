@@ -9,6 +9,7 @@ use binseq::{
     vbq::{VBinseqHeaderBuilder, VBinseqWriterBuilder},
     BitSize, Policy,
 };
+use log::{debug, info};
 use ncbi_vdb_sys::SraReader;
 use parking_lot::Mutex;
 
@@ -22,15 +23,13 @@ const THREAD_UPDATE_INTERVAL: usize = 1024;
 pub fn recode(args: &RecodeArgs) -> Result<()> {
     args.validate()?;
     let accession = if !Path::new(&args.input.accession).exists() {
-        eprintln!(
-            "Identifying SRA data URL for Accession: {}",
-            &args.input.accession
-        );
+        info!(accession = args.input.accession.as_str(); "Identifying SRA data URL for accession");
         let runtime = tokio::runtime::Runtime::new()?;
         let url = runtime.block_on(identify_url(&args.input.accession, &args.input.options))?;
-        eprintln!("Streaming SRA records from URL: {}", url);
+        info!(url = url.as_str(); "Streaming SRA records from URL");
         url
     } else {
+        debug!(path = args.input.accession.as_str(); "Using local SRA file");
         args.input.accession.to_string()
     };
 

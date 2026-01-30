@@ -6,6 +6,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use anyhow::Result;
+use log::{debug, info, warn};
 use ncbi_vdb_sys::SraReader;
 use output::{build_segment_writer, BoxedSegmentWriter};
 use parking_lot::Mutex;
@@ -148,15 +149,13 @@ pub fn dump(
     filter_opts: FilterOptions,
 ) -> Result<()> {
     let accession = if !Path::new(&input.accession).exists() {
-        eprintln!(
-            "Identifying SRA data URL for Accession: {}",
-            &input.accession
-        );
+        info!(accession = input.accession.as_str(); "Identifying SRA data URL for accession");
         let runtime = tokio::runtime::Runtime::new()?;
         let url = runtime.block_on(identify_url(&input.accession, &input.options))?;
-        eprintln!("Streaming SRA records from URL: {}", url);
+        info!(url = url.as_str(); "Streaming SRA records from URL");
         url
     } else {
+        debug!(path = input.accession.as_str(); "Using local SRA file");
         input.accession.to_string()
     };
 
@@ -165,8 +164,11 @@ pub fn dump(
     // Adjust the number of records to process if a limit is provided
     let num_records = if let Some(limit) = filter_opts.limit {
         if limit > num_records {
-            eprintln!("Warning: Provided spot limit ({}) is greater than the actual number of spots ({}). Will process the full archive.",
-                limit, num_records);
+            warn!(
+                spot_limit = limit,
+                actual_spots = num_records;
+                "Provided spot limit exceeds actual number of spots, processing full archive"
+            );
         }
         num_records.min(limit)
     } else {
@@ -236,9 +238,9 @@ pub fn dump(
                         seg_id,
                     );
                     if output_opts.keep_empty {
-                        eprintln!("Warning => empty path: {}", path);
+                        warn!(path = path.as_str(), segment_id = seg_id; "Output file is empty but kept due to --keep-empty flag");
                     } else {
-                        eprintln!("Removing empty path: {}", path);
+                        debug!(path = path.as_str(), segment_id = seg_id; "Removing empty output file");
                         std::fs::remove_file(path)?;
                     }
                 }
