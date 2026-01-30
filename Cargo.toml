@@ -21,7 +21,7 @@ hashbrown = "0.16.0"
 indicatif = "0.18.2"
 libc = "0.2.177"
 log = { version = "0.4.29", features = ["kv"] }
-ncbi-vdb-sys = "0.1.6"
+ncbi-vdb-sys = "0.1.7"
 num_cpus = "1.17.0"
 parking_lot = "0.12.5"
 reqwest = { version = "0.12.24", default-features = false, features = [
