@@ -2,6 +2,7 @@ use crate::cli::{AccessionOptions, MultiInputOptions, Provider};
 use anyhow::{bail, Result};
 use futures::{future::join_all, stream::FuturesUnordered, StreamExt};
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
+use log::{debug, error, info, trace, warn};
 use std::{
     fs::File,
     io::{BufWriter, Write},
@@ -39,7 +40,9 @@ pub async fn query_entrez(accession: &str) -> Result<String> {
         "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=sra&id={}&rettype=full",
         accession
     );
+    trace!(accession = accession, url = query_url.as_str(); "Querying NCBI Entrez");
     let response = CLIENT.get(&query_url).send().await?.text().await?;
+    trace!(accession = accession, response_len = response.len(); "Received Entrez response");
     Ok(response)
 }
 
@@ -123,14 +126,17 @@ pub fn parse_url_with_fallback(
     // Fallback from SRA lite to full if needed
     if !lite_only {
         if let Some(url) = parse_url(accession, response, true, provider) {
-            eprintln!(
-                "Warning: Lite quality not available for {}, falling back to full quality",
-                accession
+            warn!(
+                accession = accession;
+                "Lite quality not available, falling back to full quality"
             );
             return Some(url);
         }
     } else {
-        eprintln!("Warning: No lite quality found for <{accession}> - not performing fallback because `--lite-only` flag in use")
+        warn!(
+            accession = accession;
+            "No lite quality found - not performing fallback because `--lite-only` flag in use"
+        );
     }
 
     None
@@ -150,9 +156,12 @@ pub async fn identify_url(accession: &str, options: &AccessionOptions) -> Result
         // Check if we're being rate limited
         if is_rate_limited(&entrez_response) {
             let delay = options.retry_delay + (retry_count * options.retry_delay);
-            eprintln!(
-                "Rate limit detected for accession {}, retrying in {}ms (attempt {}/{})",
-                accession, delay, retry_count, options.retry_limit
+            warn!(
+                accession = accession,
+                delay_ms = delay,
+                attempt = retry_count,
+                max_retries = options.retry_limit;
+                "Rate limit detected, retrying after delay"
             );
 
             // Use tokio::time::sleep for asynchronous sleep
@@ -197,7 +206,7 @@ pub async fn identify_urls(
     options: &AccessionOptions,
 ) -> Result<Vec<(String, Result<String>)>> {
     let total = accessions.len();
-    eprintln!("Identifying URLs for {} accessions...", total);
+    info!(count = total; "Identifying URLs for accessions");
 
     // Use a semaphore to limit concurrent requests to 3
     let semaphore = Arc::new(Semaphore::new(RATE_LIMIT_SEMAPHORE));
@@ -215,7 +224,7 @@ pub async fn identify_urls(
                 .acquire()
                 .await
                 .expect("Semaphore should not be closed");
-            eprintln!(">> Identifying URL for accession: {}", accession_clone);
+            debug!(accession = accession_clone.as_str(); "Identifying URL for accession");
 
             // Execute the request
             let result = identify_url(&accession_clone, &options_clone).await;
@@ -238,7 +247,7 @@ pub async fn identify_urls(
     for result in results {
         match result {
             Ok(res) => processed_results.push(res),
-            Err(e) => eprintln!("Task join error: {}", e),
+            Err(e) => error!(error:% = e; "Task join error"),
         }
     }
 
@@ -248,6 +257,7 @@ pub async fn identify_urls(
 /// Download a file from a URL asynchronously
 async fn download_url(url: String, path: String, pb: ProgressBar) -> Result<()> {
     let filename = url.split('/').next_back().unwrap_or("");
+    trace!(url = url.as_str(), path = path.as_str(); "Starting HTTPS download");
     let client = CLIENT.get(&url).send().await?.error_for_status()?;
 
     let size = client.content_length().unwrap_or(0);
@@ -258,7 +268,7 @@ async fn download_url(url: String, path: String, pb: ProgressBar) -> Result<()> 
     pb.set_length(size);
     pb.set_message(filename.to_string());
 
-    let mut file = File::create(path).map(BufWriter::new)?;
+    let mut file = File::create(&path).map(BufWriter::new)?;
     let mut stream = client.bytes_stream();
     while let Some(item) = stream.next().await {
         let chunk = item?;
@@ -267,6 +277,7 @@ async fn download_url(url: String, path: String, pb: ProgressBar) -> Result<()> 
     }
     file.flush()?;
     pb.finish();
+    debug!(path = path.as_str(), filename = filename; "HTTPS download completed");
     Ok(())
 }
 
@@ -278,6 +289,12 @@ async fn download_url_gcp(
     pb: ProgressBar,
 ) -> Result<()> {
     let filename = url.split('/').next_back().unwrap_or("");
+    trace!(
+        url = url.as_str(),
+        path = path.as_str(),
+        project_id = project_id.as_str();
+        "Starting GCP download via gsutil"
+    );
     pb.set_message(format!("GCP: {}", filename));
 
     // Set indeterminate progress style - we'll let gsutil show its own progress
@@ -299,10 +316,16 @@ async fn download_url_gcp(
 
     if !status.success() {
         pb.finish_with_message(format!("Failed to download {}", filename));
+        error!(
+            filename = filename,
+            exit_code:? = status.code();
+            "gsutil command failed"
+        );
         bail!("gsutil command failed with exit code: {}", status);
     }
 
     pb.finish_with_message(format!("Downloaded {} successfully", filename));
+    debug!(path = path.as_str(), filename = filename; "GCP download completed");
     Ok(())
 }
 
@@ -368,9 +391,9 @@ pub async fn prefetch(input: &MultiInputOptions, output_dir: Option<&str>) -> Re
                         let project_id = match &input.options.gcp_project_id {
                             Some(id) => id.to_string(),
                             None => {
-                                eprintln!(
-                                    "Error for accession {}: GCP project ID is required",
-                                    accession
+                                error!(
+                                    accession = accession.as_str();
+                                    "GCP project ID is required for GCP downloads"
                                 );
                                 continue;
                             }
@@ -379,16 +402,17 @@ pub async fn prefetch(input: &MultiInputOptions, output_dir: Option<&str>) -> Re
                         gcp_downloads.push((url, path, project_id, pb));
                     }
                     _ => {
-                        eprintln!(
-                            "Error for accession {}: Unsupported provider: {:?}",
-                            accession, input.options.provider
+                        error!(
+                            accession = accession.as_str(),
+                            provider:? = input.options.provider;
+                            "Unsupported provider"
                         );
                         continue;
                     }
                 }
             }
             Err(e) => {
-                eprintln!("Error for accession {}: {}", accession, e);
+                error!(accession = accession.as_str(), error:% = e; "Failed to identify URL");
             }
         }
     }
@@ -396,7 +420,7 @@ pub async fn prefetch(input: &MultiInputOptions, output_dir: Option<&str>) -> Re
     // Process HTTPS downloads concurrently
     while let Some(result) = https_downloads.next().await {
         if let Err(e) = result {
-            eprintln!("Download error: {}", e);
+            error!(error:% = e; "HTTPS download failed");
         }
     }
 
@@ -404,7 +428,7 @@ pub async fn prefetch(input: &MultiInputOptions, output_dir: Option<&str>) -> Re
     // we'll run them sequentially to avoid overwhelming the terminal output
     for (url, path, project_id, pb) in gcp_downloads {
         if let Err(e) = download_url_gcp(url, path, project_id, pb).await {
-            eprintln!("GCP download error: {}", e);
+            error!(error:% = e; "GCP download failed");
         }
     }
 

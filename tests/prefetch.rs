@@ -1,4 +1,4 @@
-use assert_cmd::Command;
+use assert_cmd::cargo;
 use predicates::prelude::*;
 use std::fs;
 use tempfile::TempDir;
@@ -12,7 +12,7 @@ fn test_prefetch_multiple_accessions_https() {
     let output_path = temp_dir.path();
 
     // Use same accessions as fixtures to save time
-    let mut cmd = Command::cargo_bin("xsra").unwrap();
+    let mut cmd = cargo::cargo_bin_cmd!("xsra");
     cmd.args(&[
         "prefetch",
         "SRR5150787", // Small variable-length SRA (~1.7MB)
@@ -55,7 +55,7 @@ fn test_prefetch_invalid_accession_https() {
     let temp_dir = TempDir::new().unwrap();
     let output_path = temp_dir.path();
 
-    let mut cmd = Command::cargo_bin("xsra").unwrap();
+    let mut cmd = cargo::cargo_bin_cmd!("xsra");
     cmd.args(&[
         "prefetch",
         "INVALID_ACCESSION_12345",
@@ -81,7 +81,7 @@ fn test_prefetch_lite_vs_full_quality() {
     let output_path_lite = temp_dir_lite.path();
 
     // First, download lite version (prefer lite, allow fallback)
-    let mut cmd_lite = Command::cargo_bin("xsra").unwrap();
+    let mut cmd_lite = cargo::cargo_bin_cmd!("xsra");
     cmd_lite.args(&[
         "prefetch",
         "SRR5150787", // Small variable SRA that should have lite version
@@ -109,7 +109,7 @@ fn test_prefetch_lite_vs_full_quality() {
     let temp_dir_full = TempDir::new().unwrap();
     let output_path_full = temp_dir_full.path();
 
-    let mut cmd_full = Command::cargo_bin("xsra").unwrap();
+    let mut cmd_full = cargo::cargo_bin_cmd!("xsra");
     cmd_full.args(&[
         "prefetch",
         "SRR5150787",

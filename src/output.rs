@@ -6,6 +6,7 @@ use anyhow::{bail, Result};
 use clap::ValueEnum;
 use gzp::deflate::{Bgzf, Gzip};
 use gzp::par::compress::{ParCompress, ParCompressBuilder};
+use log::info;
 use std::process::Command;
 use zstd::Encoder;
 
@@ -75,10 +76,7 @@ fn create_fifo_if_absent(path: OutputFileType) -> Result<()> {
                 let minfo = std::fs::metadata(path)?;
                 if cfg!(target_family = "unix") {
                     if minfo.file_type().is_fifo() {
-                        eprintln!(
-                            "The path {} already existed as is a fifo, so using that for communication.",
-                            path
-                        );
+                        info!(path = path; "Using existing FIFO for communication");
                         true
                     } else {
                         // the file existed but wasn't a fifo
