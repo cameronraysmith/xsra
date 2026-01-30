@@ -1,5 +1,5 @@
 use anyhow::Result;
-use assert_cmd::Command;
+use assert_cmd::cargo;
 use predicates::prelude::*;
 use std::fs;
 use tempfile::TempDir;
@@ -29,7 +29,7 @@ fn default_accession_options() -> AccessionOptions {
 #[test]
 fn test_simple_fastq_dump_cli() -> Result<()> {
     let fixtures = TestFixtures::ensure_fixtures()?;
-    let mut cmd = Command::cargo_bin("xsra")?;
+    let mut cmd = cargo::cargo_bin_cmd!("xsra");
     cmd.arg("dump")
         .arg(fixtures.small_variable_sra)
         .arg("--limit")
@@ -110,7 +110,7 @@ fn test_split_file_dump() -> Result<()> {
 #[test]
 fn test_filtered_dump_cli() -> Result<()> {
     let fixtures = TestFixtures::ensure_fixtures()?;
-    let mut cmd = Command::cargo_bin("xsra")?;
+    let mut cmd = cargo::cargo_bin_cmd!("xsra");
     cmd.arg("dump")
         .arg(fixtures.small_variable_sra)
         .arg("--skip-technical")
@@ -209,7 +209,7 @@ fn test_named_pipes_io() -> Result<()> {
 #[test]
 fn test_fasta_output_cli() -> Result<()> {
     let fixtures = TestFixtures::ensure_fixtures()?;
-    let mut cmd = Command::cargo_bin("xsra")?;
+    let mut cmd = cargo::cargo_bin_cmd!("xsra");
     cmd.arg("dump")
         .arg(fixtures.small_variable_sra)
         .arg("--format")
