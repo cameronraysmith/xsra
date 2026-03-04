@@ -107,26 +107,26 @@ impl RecodeOutput {
 #[derive(clap::ValueEnum, Clone, Copy, Debug, Default)]
 pub enum BinseqFlavor {
     #[clap(name = "b", help = "BQ")]
-    Binseq,
+    BQ,
     #[clap(name = "v", help = "VBQ")]
-    VBinseq,
+    VBQ,
     #[clap(name = "c", help = "CBQ")]
     #[default]
-    Cbinseq,
+    CBQ,
 }
 impl BinseqFlavor {
     pub fn extension(&self) -> &str {
         match self {
-            BinseqFlavor::Binseq => "bq",
-            BinseqFlavor::VBinseq => "vbq",
-            BinseqFlavor::Cbinseq => "cbq",
+            BinseqFlavor::BQ => "bq",
+            BinseqFlavor::VBQ => "vbq",
+            BinseqFlavor::CBQ => "cbq",
         }
     }
     pub fn to_format(self) -> Format {
         match self {
-            BinseqFlavor::Binseq => Format::Bq,
-            BinseqFlavor::VBinseq => Format::Vbq,
-            BinseqFlavor::Cbinseq => Format::Cbq,
+            BinseqFlavor::BQ => Format::Bq,
+            BinseqFlavor::VBQ => Format::Vbq,
+            BinseqFlavor::CBQ => Format::Cbq,
         }
     }
 }
