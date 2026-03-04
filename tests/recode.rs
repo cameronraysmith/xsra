@@ -83,7 +83,7 @@ fn test_recode_to_binseq_variable_length_error() {
     // Small variable SRA has variable-length segments, so BINSEQ encoding should fail
     assert.failure().stderr(
         predicate::str::contains(
-            "Segment ID 0 shows variance in length. Cannot encode to BINSEQ (try VBINSEQ instead)",
+            "Segment ID 0 shows variance in length. Cannot encode to BQ (try VBQ or CBQ instead)",
         )
         .or(predicate::str::is_empty()), // Allow empty stderr in case of buffering issues
     );

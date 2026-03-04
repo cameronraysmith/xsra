@@ -54,7 +54,7 @@ fn recode_inner(
     num_threads: u64,
     format: Format,
 ) -> Result<()> {
-    let output = File::create(output_path).map(BufWriter::new)?;
+    // BQ requires fixed sequence lengths determined upfront; validate before creating output file
     let mut builder = BinseqWriterBuilder::new(format)
         .headers(false)
         .quality(true)
@@ -62,7 +62,6 @@ fn recode_inner(
         .paired(extended_sid.is_some())
         .block_size(block_size);
 
-    // BQ requires fixed sequence lengths determined upfront
     if matches!(format, Format::Bq) {
         let stats = describe_inner(accession, 0, 100)?;
         let sid_lengths = stats.segment_lengths();
@@ -84,6 +83,7 @@ fn recode_inner(
         }
     }
 
+    let output = File::create(output_path).map(BufWriter::new)?;
     let g_writer = Arc::new(Mutex::new(builder.build(output)?));
 
     let num_records = get_num_records(accession)?;
