@@ -18,7 +18,7 @@ However, it is not a complete feature-for-feature replacement, and some function
 
 - Multi-threaded extraction to FASTA, FASTQ, and [BINSEQ](https://github.com/arcinstitute/binseq) records.
 - Optional built-in compression of output files (FASTA, FASTQ) - [gzip, bgzip, zstd]
-- Choice of BINSEQ output format (`*.bq` and `*.vbq`)
+- Choice of BINSEQ output format (`*.bq`, `*.vbq`, `*.cbq`)
 - Minimum read length filtering
 - Technical / biological read segment selection
 - Spot subsetting
@@ -91,17 +91,20 @@ xsra prefetch <ACCESSION>.sra
 xsra prefetch <ACCESSION>.sra <ACCESSION2>.sra <ACCESSION3>.sra
 ```
 
-You can also write [BINSEQ](https://github.com/arcinstitute/binseq) files (`.bq` / `.vbq`) directly from SRA without an intermediate FASTA or FASTQ file.
+You can also write [BINSEQ](https://github.com/arcinstitute/binseq) files (`.bq`, `.vbq`, `.cbq`) directly from SRA without an intermediate FASTA or FASTQ file.
 These operations can be done with multiple threads for faster processing as well (following same arguments as above).
 
 ```bash
-# Write a BINSEQ file to (output.bq) selecting segments 1 and 2 (zero-indexed) as primary and extended.
-xsra recode <ACCESSION>.sra -fb -I 0,1
+# Write a CBQ file to (output.cbq) selecting segments 1 and 2 (zero-indexed) as primary and extended.
+xsra recode <ACCESSION>.sra -I 0,1
 
-# Write a BINSEQ file to (output.bq) selecting segment 3 (zero-indexed) as primary.
+# Write a CBQ file to (output.cbq) selecting segments 1 and 2 (zero-indexed) as primary and extended.
+xsra recode <ACCESSION>.sra -fc -I 0,1
+
+# Write a BQ file to (output.bq) selecting segment 3 (zero-indexed) as primary.
 xsra recode <ACCESSION>.sra -fb -I 2
 
-# Write a VBINSEQ file to (output.vbq) selecting segments 3 and 1 (zero-indexed) as primary and extended.
+# Write a VBQ file to (output.vbq) selecting segments 3 and 1 (zero-indexed) as primary and extended.
 xsra recode <ACCESSION>.sra -fv -I 3,1
 ```
 

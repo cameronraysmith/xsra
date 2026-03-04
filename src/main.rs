@@ -18,7 +18,17 @@ use recode::recode;
 pub const BUFFER_SIZE: usize = 1024 * 1024;
 pub const RECORD_CAPACITY: usize = 1024;
 
+fn initialize_logger() {
+    env_logger::builder()
+        .format_timestamp_millis()
+        .filter_level(log::LevelFilter::Info)
+        .parse_env("XSRA_LOG")
+        .init();
+}
+
 fn main() -> Result<()> {
+    initialize_logger();
+
     let args = Cli::parse();
     match args.command {
         cli::Command::Dump(args) => dump(

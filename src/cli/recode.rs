@@ -1,6 +1,6 @@
 use super::{InputOptions, RuntimeOptions};
 use anyhow::{bail, Result};
-use binseq::BitSize;
+use binseq::{write::Format, BitSize};
 use clap::Parser;
 
 #[derive(Parser, Debug)]
@@ -66,21 +66,23 @@ pub struct SelectionOptions {
 #[derive(Parser, Debug)]
 #[clap(next_help_heading = "OUTPUT OPTIONS")]
 pub struct RecodeOutput {
-    /// BINSEQ output name (default: "output.{bq,vbq}")
+    /// BINSEQ output name (default: "output.{bq,vbq,cbq}")
     #[clap(short, long)]
     pub name: Option<String>,
 
     /// BINSEQ output flavor
-    #[clap(short, long)]
+    #[clap(short, long, default_value = "c")]
     pub flavor: BinseqFlavor,
 
     /// BINSEQ bit size
+    ///
+    /// Not used by CBQ
     #[clap(long, default_value_t = 2)]
     bitsize: u8,
 
-    /// VBQ virtual block size (in bytes)
+    /// Virtual block size (in bytes)
     ///
-    /// Only used by vbq
+    /// Not used by BQ
     #[clap(short = 'B', long, value_parser = parse_memory_size, default_value = "128K")]
     pub block_size: usize,
 }
@@ -102,18 +104,29 @@ impl RecodeOutput {
     }
 }
 
-#[derive(clap::ValueEnum, Clone, Copy, Debug)]
+#[derive(clap::ValueEnum, Clone, Copy, Debug, Default)]
 pub enum BinseqFlavor {
-    #[clap(name = "b", help = "BINSEQ")]
-    Binseq,
-    #[clap(name = "v", help = "VBINSEQ")]
-    VBinseq,
+    #[clap(name = "b", help = "BQ")]
+    BQ,
+    #[clap(name = "v", help = "VBQ")]
+    VBQ,
+    #[clap(name = "c", help = "CBQ")]
+    #[default]
+    CBQ,
 }
 impl BinseqFlavor {
     pub fn extension(&self) -> &str {
         match self {
-            BinseqFlavor::Binseq => "bq",
-            BinseqFlavor::VBinseq => "vbq",
+            BinseqFlavor::BQ => "bq",
+            BinseqFlavor::VBQ => "vbq",
+            BinseqFlavor::CBQ => "cbq",
+        }
+    }
+    pub fn to_format(self) -> Format {
+        match self {
+            BinseqFlavor::BQ => Format::Bq,
+            BinseqFlavor::VBQ => Format::Vbq,
+            BinseqFlavor::CBQ => Format::Cbq,
         }
     }
 }
