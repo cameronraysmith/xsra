@@ -71,7 +71,7 @@ pub struct RecodeOutput {
     pub name: Option<String>,
 
     /// BINSEQ output flavor
-    #[clap(short, long)]
+    #[clap(short, long, default_value = "c")]
     pub flavor: BinseqFlavor,
 
     /// BINSEQ bit size
@@ -104,13 +104,14 @@ impl RecodeOutput {
     }
 }
 
-#[derive(clap::ValueEnum, Clone, Copy, Debug)]
+#[derive(clap::ValueEnum, Clone, Copy, Debug, Default)]
 pub enum BinseqFlavor {
     #[clap(name = "b", help = "BQ")]
     Binseq,
     #[clap(name = "v", help = "VBQ")]
     VBinseq,
     #[clap(name = "c", help = "CBQ")]
+    #[default]
     Cbinseq,
 }
 impl BinseqFlavor {
