@@ -99,7 +99,7 @@ These operations can be done with multiple threads for faster processing as well
 xsra recode <ACCESSION>.sra -I 0,1
 
 # Write a CBQ file to (output.cbq) selecting segments 1 and 2 (zero-indexed) as primary and extended.
-xsra record <ACCESSION>.sra -fc -I 0,1
+xsra recode <ACCESSION>.sra -fc -I 0,1
 
 # Write a BQ file to (output.bq) selecting segment 3 (zero-indexed) as primary.
 xsra recode <ACCESSION>.sra -fb -I 2
