@@ -1,6 +1,6 @@
 [package]
 name = "xsra"
-version = "0.2.27"
+version = "0.2.28"
 edition = "2021"
 license = "MIT"
 authors = ["Noam Teyssier <noam.teyssier@arcinstitute.org>"]
