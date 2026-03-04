@@ -18,7 +18,7 @@ pub use dump::{DumpArgs, DumpOutput, OutputFormat};
 pub use filter::FilterOptions;
 pub use input::{AccessionOptions, InputOptions, MultiInputOptions, Provider};
 pub use prefetch::PrefetchArgs;
-pub use recode::{BinseqFlavor, RecodeArgs};
+pub use recode::RecodeArgs;
 pub use runtime::RuntimeOptions;
 
 const STYLES: Styles = Styles::styled()
