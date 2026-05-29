@@ -1,5 +1,5 @@
 use crate::cli::{AccessionOptions, MultiInputOptions, Provider};
-use anyhow::{bail, Result};
+use anyhow::{anyhow, bail, Result};
 use futures::{future::join_all, stream::FuturesUnordered, StreamExt};
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use log::{debug, error, info, trace, warn};
@@ -242,12 +242,21 @@ pub async fn identify_urls(
     // Wait for all tasks to complete
     let results = join_all(tasks).await;
 
-    // Process results, handling any JoinError from the spawned tasks
-    let mut processed_results = Vec::new();
-    for result in results {
+    // Process results, handling any JoinError from the spawned tasks.
+    // `join_all` preserves task order, which matches the input `accessions`
+    // order, so a JoinError can be attributed to its accession rather than
+    // being silently dropped.
+    let mut processed_results = Vec::with_capacity(accessions.len());
+    for (accession, result) in accessions.iter().zip(results) {
         match result {
             Ok(res) => processed_results.push(res),
-            Err(e) => error!(error:% = e; "Task join error"),
+            Err(e) => {
+                error!(accession = accession.as_str(), error:% = e; "Task join error");
+                processed_results.push((
+                    accession.clone(),
+                    Err(anyhow!("task failed to complete: {e}")),
+                ));
+            }
         }
     }
 
@@ -372,6 +381,10 @@ pub async fn prefetch(input: &MultiInputOptions, output_dir: Option<&str>) -> Re
     // For GCP downloads, we'll use a separate Vec since gsutil has its own concurrency management
     let mut gcp_downloads = Vec::new();
 
+    // Accumulate per-accession failures so the command can fail loudly at the
+    // end while still attempting every accession (best-effort behavior).
+    let mut failures: Vec<String> = Vec::new();
+
     for (accession, url_result) in url_results {
         match url_result {
             Ok(url) => {
@@ -385,7 +398,12 @@ pub async fn prefetch(input: &MultiInputOptions, output_dir: Option<&str>) -> Re
 
                 match input.options.provider {
                     Provider::Https => {
-                        https_downloads.push(download_url(url, path, pb));
+                        // Carry the accession into the future so download
+                        // failures can be attributed back to it.
+                        https_downloads.push(async move {
+                            let result = download_url(url, path, pb).await;
+                            (accession, result)
+                        });
                     }
                     Provider::Gcp => {
                         let project_id = match &input.options.gcp_project_id {
@@ -395,11 +413,14 @@ pub async fn prefetch(input: &MultiInputOptions, output_dir: Option<&str>) -> Re
                                     accession = accession.as_str();
                                     "GCP project ID is required for GCP downloads"
                                 );
+                                failures.push(format!(
+                                    "{accession}: GCP project ID is required for GCP downloads"
+                                ));
                                 continue;
                             }
                         };
                         // We'll collect GCP downloads and process them separately
-                        gcp_downloads.push((url, path, project_id, pb));
+                        gcp_downloads.push((accession, url, path, project_id, pb));
                     }
                     _ => {
                         error!(
@@ -407,29 +428,44 @@ pub async fn prefetch(input: &MultiInputOptions, output_dir: Option<&str>) -> Re
                             provider:? = input.options.provider;
                             "Unsupported provider"
                         );
+                        failures.push(format!(
+                            "{accession}: unsupported provider: {:?}",
+                            input.options.provider
+                        ));
                         continue;
                     }
                 }
             }
             Err(e) => {
                 error!(accession = accession.as_str(), error:% = e; "Failed to identify URL");
+                failures.push(format!("{accession}: URL resolution failed: {e}"));
             }
         }
     }
 
     // Process HTTPS downloads concurrently
-    while let Some(result) = https_downloads.next().await {
+    while let Some((accession, result)) = https_downloads.next().await {
         if let Err(e) = result {
-            error!(error:% = e; "HTTPS download failed");
+            error!(accession = accession.as_str(), error:% = e; "HTTPS download failed");
+            failures.push(format!("{accession}: download failed: {e}"));
         }
     }
 
     // Process GCP downloads - since gsutil has its own concurrency management,
     // we'll run them sequentially to avoid overwhelming the terminal output
-    for (url, path, project_id, pb) in gcp_downloads {
+    for (accession, url, path, project_id, pb) in gcp_downloads {
         if let Err(e) = download_url_gcp(url, path, project_id, pb).await {
-            error!(error:% = e; "GCP download failed");
+            error!(accession = accession.as_str(), error:% = e; "GCP download failed");
+            failures.push(format!("{accession}: download failed: {e}"));
         }
+    }
+
+    if !failures.is_empty() {
+        bail!(
+            "prefetch failed for {} accession(s):\n{}",
+            failures.len(),
+            failures.join("\n")
+        );
     }
 
     Ok(())
@@ -843,5 +879,32 @@ mod tests {
         assert!(result.is_err());
         let err_msg = result.unwrap_err().to_string();
         assert!(err_msg.contains("GCP project ID is required for GCP downloads"));
+    }
+
+    #[tokio::test]
+    async fn prefetch_multi_fails_when_any_url_resolution_fails() {
+        // Both accessions contain "INVALID", so the test `query_entrez` returns
+        // "no urls found" for each and resolution fails with no network access.
+        let input = MultiInputOptions {
+            accessions: vec!["INVALID_A".to_string(), "INVALID_B".to_string()],
+            options: create_test_accession_options(),
+        };
+
+        let result = prefetch(&input, None).await;
+        assert!(
+            result.is_err(),
+            "multi-accession prefetch must fail when an accession cannot be resolved"
+        );
+
+        // The summary error must identify every failed accession, not just the first.
+        let err_msg = result.unwrap_err().to_string();
+        assert!(
+            err_msg.contains("INVALID_A"),
+            "missing INVALID_A: {err_msg}"
+        );
+        assert!(
+            err_msg.contains("INVALID_B"),
+            "missing INVALID_B: {err_msg}"
+        );
     }
 }
