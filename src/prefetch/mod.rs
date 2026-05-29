@@ -252,8 +252,10 @@ pub async fn identify_urls(
             Ok(res) => processed_results.push(res),
             Err(e) => {
                 error!(accession = accession.as_str(), error:% = e; "Task join error");
-                processed_results
-                    .push((accession.clone(), Err(anyhow!("task failed to complete: {e}"))));
+                processed_results.push((
+                    accession.clone(),
+                    Err(anyhow!("task failed to complete: {e}")),
+                ));
             }
         }
     }
@@ -896,7 +898,13 @@ mod tests {
 
         // The summary error must identify every failed accession, not just the first.
         let err_msg = result.unwrap_err().to_string();
-        assert!(err_msg.contains("INVALID_A"), "missing INVALID_A: {err_msg}");
-        assert!(err_msg.contains("INVALID_B"), "missing INVALID_B: {err_msg}");
+        assert!(
+            err_msg.contains("INVALID_A"),
+            "missing INVALID_A: {err_msg}"
+        );
+        assert!(
+            err_msg.contains("INVALID_B"),
+            "missing INVALID_B: {err_msg}"
+        );
     }
 }
