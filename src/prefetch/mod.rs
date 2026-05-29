@@ -246,7 +246,7 @@ pub async fn identify_urls(
     // `join_all` preserves task order, which matches the input `accessions`
     // order, so a JoinError can be attributed to its accession rather than
     // being silently dropped.
-    let mut processed_results = Vec::new();
+    let mut processed_results = Vec::with_capacity(accessions.len());
     for (accession, result) in accessions.iter().zip(results) {
         match result {
             Ok(res) => processed_results.push(res),
